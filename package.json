@@ -1,0 +1,13 @@
+{
+  "name": "spades",
+  "version": "1.0.0",
+  "description": "Spades card game: you and three computer players",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "sim": "node tests/sim.js",
+    "start": "python3 -m http.server 8000"
+  },
+  "license": "Unlicense"
+}
