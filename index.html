@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Spades</title>
+  <meta name="description" content="Play Spades in your browser: you and a computer partner against two computer opponents.">
+  <meta name="theme-color" content="#0f3d2a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/ui.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand"><span aria-hidden="true">♠</span> Spades</h1>
+    <div class="scoreboard" aria-live="polite">
+      <div class="team team-0" id="team-0">
+        <div class="team-name">You &amp; North</div>
+        <div class="team-score" id="score-0">0</div>
+        <div class="team-detail"><span id="hand-0"></span><span class="bags" id="bags-0"></span></div>
+      </div>
+      <div class="vs">
+        <div>vs</div>
+        <div class="target" id="target"></div>
+      </div>
+      <div class="team team-1" id="team-1">
+        <div class="team-name">West &amp; East</div>
+        <div class="team-score" id="score-1">0</div>
+        <div class="team-detail"><span id="hand-1"></span><span class="bags" id="bags-1"></span></div>
+      </div>
+    </div>
+    <nav class="menu">
+      <button type="button" id="btn-scores">Scores</button>
+      <button type="button" id="btn-rules">Rules</button>
+      <button type="button" id="btn-settings" aria-label="Settings">Settings</button>
+      <button type="button" id="btn-new">New game</button>
+    </nav>
+  </header>
+
+  <main class="table" id="table">
+    <section class="seat seat-north" id="seat-2">
+      <div class="seat-label"><span class="seat-name">North <small>partner</small></span><span class="dealer-chip" hidden>D</span></div>
+      <div class="seat-info"></div>
+      <div class="backs"></div>
+    </section>
+    <section class="seat seat-west" id="seat-1">
+      <div class="seat-label"><span class="seat-name">West</span><span class="dealer-chip" hidden>D</span></div>
+      <div class="seat-info"></div>
+      <div class="backs"></div>
+    </section>
+    <section class="seat seat-east" id="seat-3">
+      <div class="seat-label"><span class="seat-name">East</span><span class="dealer-chip" hidden>D</span></div>
+      <div class="seat-info"></div>
+      <div class="backs"></div>
+    </section>
+
+    <section class="center" id="center">
+      <div class="trick" id="trick">
+        <div class="slot slot-2"></div>
+        <div class="slot slot-1"></div>
+        <div class="slot slot-3"></div>
+        <div class="slot slot-0"></div>
+      </div>
+
+      <div class="panel" id="bid-panel" hidden>
+        <div class="panel-title">Your bid</div>
+        <div class="panel-sub" id="bid-context"></div>
+        <div class="bid-grid" id="bid-grid"></div>
+        <button type="button" class="link" id="bid-hint">Suggest a bid</button>
+      </div>
+
+      <div class="panel" id="blind-panel" hidden>
+        <div class="panel-title">Blind nil?</div>
+        <p class="panel-sub" id="blind-text"></p>
+        <div class="panel-actions">
+          <button type="button" class="primary" id="blind-yes">Bid blind nil</button>
+          <button type="button" id="blind-no">Look at my cards</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="seat seat-south" id="seat-0">
+      <div class="seat-label"><span class="seat-name">You</span><span class="dealer-chip" hidden>D</span></div>
+      <div class="seat-info"></div>
+    </section>
+  </main>
+
+  <div class="statusbar">
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="status-actions">
+      <button type="button" id="btn-last" disabled>Last trick</button>
+      <button type="button" id="btn-hint" disabled>Hint</button>
+    </div>
+  </div>
+
+  <section class="hand-area" aria-label="Your hand">
+    <div class="hand" id="hand"></div>
+  </section>
+
+  <!-- Dialogs -->
+  <dialog id="dlg-hand" class="dialog">
+    <h2 id="hand-title">Hand results</h2>
+    <div id="hand-body"></div>
+    <form method="dialog" class="dialog-actions">
+      <button class="primary" id="btn-next-hand" value="next">Next hand</button>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-over" class="dialog">
+    <h2 id="over-title">Game over</h2>
+    <div id="over-body"></div>
+    <form method="dialog" class="dialog-actions">
+      <button id="btn-over-scores" value="scores">Score sheet</button>
+      <button class="primary" id="btn-over-new" value="new">New game</button>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-scores" class="dialog">
+    <h2>Score sheet</h2>
+    <div id="scores-body" class="scroll-x"></div>
+    <form method="dialog" class="dialog-actions"><button class="primary">Close</button></form>
+  </dialog>
+
+  <dialog id="dlg-last" class="dialog dialog-small">
+    <h2>Last trick</h2>
+    <div id="last-body"></div>
+    <form method="dialog" class="dialog-actions"><button class="primary">Close</button></form>
+  </dialog>
+
+  <dialog id="dlg-confirm" class="dialog dialog-small">
+    <h2>Start a new game?</h2>
+    <p>The current game will be abandoned.</p>
+    <form method="dialog" class="dialog-actions">
+      <button value="cancel">Cancel</button>
+      <button class="primary" value="ok">New game</button>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-settings" class="dialog">
+    <h2>Settings</h2>
+    <form method="dialog" id="settings-form">
+      <fieldset>
+        <legend>Game rules <small>(apply to the next new game)</small></legend>
+        <label>Play to
+          <select name="target">
+            <option value="200">200 points</option>
+            <option value="300">300 points</option>
+            <option value="500">500 points</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" name="blindNil"> Allow blind nil (team behind by 100+)</label>
+      </fieldset>
+      <fieldset>
+        <legend>Play</legend>
+        <label>Computer speed
+          <select name="speed">
+            <option value="slow">Slow</option>
+            <option value="normal">Normal</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" name="autoPlay"> Play automatically when only one card is legal</label>
+      </fieldset>
+      <div class="dialog-actions">
+        <button value="cancel">Cancel</button>
+        <button value="save-new">Save &amp; new game</button>
+        <button class="primary" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-rules" class="dialog">
+    <h2>How to play Spades</h2>
+    <div class="rules">
+      <p>You (South) and <b>North</b> are partners against <b>West</b> and <b>East</b>. The computer plays the other three seats.</p>
+      <h3>The deal and bidding</h3>
+      <ul>
+        <li>Each player gets 13 cards. The deal rotates clockwise each hand.</li>
+        <li>Starting left of the dealer, everyone bids how many tricks they expect to win (1–13). Partners' bids add up to the team's <b>contract</b>.</li>
+        <li><b>Nil</b> is a bid to win no tricks at all: +100 if you succeed, −100 if you don't. The partner's own bid is scored separately.</li>
+        <li><b>Blind nil</b> (if enabled) is bid before looking at your cards and is worth ±200. It's only allowed when your team is behind by 100 or more.</li>
+      </ul>
+      <h3>Playing tricks</h3>
+      <ul>
+        <li>The player left of the dealer leads the first trick. The winner of each trick leads the next.</li>
+        <li>You must follow the suit that was led if you can. If you can't, play any card, including a spade.</li>
+        <li>Spades are trumps: the highest spade wins the trick. If no spade was played, the highest card of the suit led wins.</li>
+        <li>Spades can't be led until a spade has been played on another suit ("spades are broken"), unless you hold only spades.</li>
+      </ul>
+      <h3>Scoring</h3>
+      <ul>
+        <li>Make your contract: 10 points per trick bid, plus 1 point per extra trick (a <b>bag</b>).</li>
+        <li>Fail your contract ("get set"): lose 10 points per trick bid.</li>
+        <li>Every 10 bags a team collects costs 100 points.</li>
+        <li>Tricks won by a nil bidder don't count toward the partner's bid, but they do count as bags.</li>
+        <li>The first team to reach the target score (500 by default) wins. If both teams pass it on the same hand, the higher score wins.</li>
+      </ul>
+      <h3>Tips</h3>
+      <ul>
+        <li>Count aces, kings and high spades when you bid, plus a trick for each spade beyond your third. Bid conservatively: getting set costs far more than a bag.</li>
+        <li>Once your contract is safe, stop winning tricks to avoid bags, unless you can set the other team.</li>
+        <li>When North bids nil, win tricks early and play high over them. When an opponent bids nil, lead low and play under them.</li>
+        <li>Stuck? Press <b>Hint</b> to see what the computer would play.</li>
+      </ul>
+    </div>
+    <form method="dialog" class="dialog-actions"><button class="primary">Got it</button></form>
+  </dialog>
+</body>
+</html>
