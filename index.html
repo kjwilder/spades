@@ -5,14 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Spades</title>
   <meta name="description" content="Play Spades in your browser: you and a computer partner against two computer opponents.">
-  <meta name="theme-color" content="#0f3d2a">
+  <meta name="theme-color" content="#17130f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/ui.js"></script>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="suit-S" viewBox="0 0 100 100"><path d="M50 5C62 22 94 40 94 62c0 13-10 22-22 22-8 0-15-4-19-11 1 10 5 17 13 22H34c8-5 12-12 13-22-4 7-11 11-19 11C16 84 6 75 6 62 6 40 38 22 50 5Z"/></symbol>
+    <symbol id="suit-H" viewBox="0 0 100 100"><path d="M50 90C20 64 6 47 6 29 6 15 17 6 29 6c9 0 17 5 21 13C54 11 62 6 71 6c12 0 23 9 23 23 0 18-14 35-44 61Z"/></symbol>
+    <symbol id="suit-D" viewBox="0 0 100 100"><path d="M50 4c8 18 21 34 36 46-15 12-28 28-36 46-8-18-21-34-36-46C29 38 42 22 50 4Z"/></symbol>
+    <symbol id="suit-C" viewBox="0 0 100 100"><circle cx="50" cy="27" r="21"/><circle cx="27" cy="59" r="21"/><circle cx="73" cy="59" r="21"/><circle cx="50" cy="50" r="12"/><path d="M47 56c0 21-4 32-13 39h32c-9-7-13-18-13-39Z"/></symbol>
+  </svg>
   <header class="topbar">
-    <h1 class="brand"><span aria-hidden="true">♠</span> Spades</h1>
+    <h1 class="brand"><svg class="suit" viewBox="0 0 100 100" aria-hidden="true"><use href="#suit-S"/></svg>Spades</h1>
     <div class="scoreboard" aria-live="polite">
       <div class="team team-0" id="team-0">
         <div class="team-name">You &amp; North</div>
