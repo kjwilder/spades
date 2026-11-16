@@ -7,7 +7,7 @@
 
 import {
   SUITS, makeDeck, suitOf, rankOf, teamOf, partnerOf, nextSeat,
-  legalPlays, beats, currentWinner, canBlindNil, teamProgress,
+  legalPlays, beats, currentWinner, canBlindNil, teamProgress, applyPlay, collectTrick,
 } from './engine.js';
 
 const bySuit = (hand) => {
@@ -469,4 +469,137 @@ function playToDuck(ctx, legal) {
   // Every card wins for now. If partner already has it, or I'm last, shed the highest.
   if (win.seat === partner || !after.length) return highest(legal);
   return lowest(legal);
+}
+
+// ---------------------------------------------------------------------------
+// Look-ahead play
+// ---------------------------------------------------------------------------
+//
+// choosePlay() above is a fast rule-based player. choosePlaySearch() uses it as a starting
+// point and then checks it: it deals the unseen cards at random to the other three players
+// (respecting hand sizes and the suits each has shown out of), plays every candidate card to
+// the end of the hand with all four seats following the rules above, and keeps the card with
+// the best average result. It still never looks at the real hidden hands.
+
+export const SEARCH_DEFAULTS = {
+  samples: 24, // random deals tried per decision
+  margin: 2, // points a card must beat the rule-based choice by, on average, to replace it
+  bagCost: 6, // future cost of each bag, on top of the point it scores now
+  gameBonus: 250, // value of ending the game as the winner
+};
+
+function seededRandom(text) {
+  let seed = 2166136261;
+  for (let i = 0; i < text.length; i++) seed = Math.imul(seed ^ text.charCodeAt(i), 16777619);
+  return function () {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Deals the unseen cards to the other seats. Returns null if no consistent deal was found.
+function sampleDeal(state, seat, k, rng) {
+  const others = [0, 1, 2, 3].filter((s) => s !== seat);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const room = [0, 0, 0, 0];
+    const hands = [[], [], [], []];
+    for (const s of others) room[s] = state.hands[s].length;
+    // Place the most constrained cards first.
+    const cards = k.unknown
+      .map((c) => ({ c, key: others.filter((s) => !k.voids[s].has(suitOf(c))).length + rng() }))
+      .sort((a, b) => a.key - b.key);
+    let ok = true;
+    for (const { c } of cards) {
+      const fits = others.filter((s) => room[s] > 0 && !k.voids[s].has(suitOf(c)));
+      if (!fits.length) { ok = false; break; }
+      // Weight by remaining room so the deal is close to uniform.
+      let pick = rng() * fits.reduce((n, s) => n + room[s], 0);
+      let chosen = fits[fits.length - 1];
+      for (const s of fits) { pick -= room[s]; if (pick < 0) { chosen = s; break; } }
+      hands[chosen].push(c);
+      room[chosen]--;
+    }
+    if (ok) return hands;
+  }
+  return null;
+}
+
+// Plays `card` and then the rest of the hand by the rules; returns the result for `team`.
+function rollout(state, seat, hands, card, params, opts) {
+  const sim = {
+    options: state.options,
+    scores: state.scores.slice(),
+    bags: state.bags.slice(),
+    dealer: state.dealer,
+    handNo: state.handNo,
+    history: [],
+    winner: null,
+    hands: hands.map((h, s) => (s === seat ? state.hands[seat].slice() : h.slice())),
+    bids: state.bids,
+    blind: state.blind,
+    tricks: state.tricks.slice(),
+    turn: state.turn,
+    leader: state.leader,
+    trick: state.trick.slice(),
+    trickWinner: null,
+    spadesBroken: state.spadesBroken,
+    played: state.played.slice(),
+    completedTricks: state.completedTricks.slice(),
+    lastResult: null,
+    phase: 'playing',
+  };
+  applyPlay(sim, seat, card);
+  while (sim.phase === 'playing' || sim.phase === 'trickEnd') {
+    if (sim.phase === 'trickEnd') collectTrick(sim);
+    else applyPlay(sim, sim.turn, choosePlay(sim, sim.turn, params));
+  }
+  const team = teamOf(seat);
+  const value = (t) => {
+    const r = sim.lastResult.teams[t];
+    return r.points - (r.bagPenalty ? 0 : r.bagsAdded * opts.bagCost);
+  };
+  let v = value(team) - value(1 - team);
+  if (sim.winner === team) v += opts.gameBonus;
+  else if (sim.winner === 1 - team) v -= opts.gameBonus;
+  return v;
+}
+
+export function choosePlaySearch(state, seat, options = {}, params = DEFAULT_PARAMS) {
+  const legal = legalPlays(state, seat);
+  if (legal.length === 1) return legal[0];
+  const opts = { ...SEARCH_DEFAULTS, ...options };
+  const base = choosePlay(state, seat, params);
+  const k = knowledge(state, seat);
+  const others = [0, 1, 2, 3].filter((s) => s !== seat);
+  // Positions that aren't a real mid-hand state (e.g. hand-built tests) fall back to the rules.
+  if (k.unknown.length !== others.reduce((n, s) => n + state.hands[s].length, 0)) return base;
+
+  // Touching cards (no unseen card between them) are equivalent: try one from each group.
+  const ctx = { k };
+  const groups = new Map();
+  for (const c of legal) {
+    const key = lowestEquivalent(ctx, legal, c);
+    if (!groups.has(key) || c === base) groups.set(key, c);
+  }
+  const candidates = [...groups.values()];
+  if (candidates.length === 1) return base;
+
+  const rng = opts.rng || seededRandom(seat + state.played.map((p) => p.card).join('') + state.hands[seat].join(''));
+  const totals = candidates.map(() => 0);
+  let done = 0;
+  for (let i = 0; i < opts.samples; i++) {
+    const hands = sampleDeal(state, seat, k, rng);
+    if (!hands) break;
+    candidates.forEach((c, j) => { totals[j] += rollout(state, seat, hands, c, params, opts); });
+    done++;
+  }
+  if (!done) return base;
+  const baseTotal = totals[candidates.indexOf(base)];
+  let best = base, bestTotal = baseTotal + opts.margin * done;
+  candidates.forEach((c, j) => {
+    if (totals[j] > bestTotal) { best = c; bestTotal = totals[j]; }
+  });
+  return best;
 }

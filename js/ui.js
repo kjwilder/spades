@@ -3,9 +3,9 @@
 
 import {
   newGame, nextHand, applyBid, applyPlay, collectTrick, legalPlays, canBlindNil, currentWinner,
-  suitOf, rankOf, rankLabel, cardName, SUIT_SYMBOL, TEAM_NAMES, teamProgress,
+  suitOf, rankLabel, cardName, SUIT_SYMBOL, TEAM_NAMES, teamProgress,
 } from './engine.js';
-import { chooseBid, chooseBlindNil, choosePlay } from './ai.js';
+import { chooseBid, chooseBlindNil, choosePlaySearch } from './ai.js';
 
 const GAME_KEY = 'spades.game.v1';
 const PREFS_KEY = 'spades.prefs.v1';
@@ -109,7 +109,7 @@ function advance() {
         return;
       }
       timer = setTimeout(() => {
-        applyPlay(state, seat, choosePlay(state, seat));
+        applyPlay(state, seat, choosePlaySearch(state, seat));
         advance();
       }, speed.ai);
       return;
@@ -174,13 +174,10 @@ function makeCard(card, tag = 'div') {
   el.className = `card${red ? ' red' : ''}`;
   el.dataset.card = card;
   el.setAttribute('aria-label', cardName(card));
-  const label = rankLabel(card);
-  const sym = SUIT_SYMBOL[suit];
-  const corner = (pos) => `<span class="corner ${pos}" aria-hidden="true"><span class="r">${label}</span><span class="s">${sym}</span></span>`;
-  const center = rankOf(card) > 10
-    ? `<span class="pip face" data-suit="${sym}" aria-hidden="true">${label}</span>`
-    : `<span class="pip" aria-hidden="true">${sym}</span>`;
-  el.innerHTML = corner('tl') + center + corner('br');
+  const svg = `<svg class="suit" viewBox="0 0 100 100"><use href="#suit-${suit}"/></svg>`;
+  el.innerHTML =
+    `<span class="index" aria-hidden="true"><span class="r">${rankLabel(card)}</span>${svg}</span>` +
+    `<span class="pip" aria-hidden="true">${svg}</span>`;
   return el;
 }
 
@@ -222,12 +219,15 @@ function renderSeats() {
     const info = el.querySelector('.seat-info');
     if (bid === null) {
       info.innerHTML = state.phase === 'bidding' && active && seat !== 0 ? 'Bidding…' : '&nbsp;';
-    } else if (bid === 0) {
-      const failed = state.tricks[seat] > 0;
-      const label = state.blind[seat] ? 'Blind nil' : 'Nil';
-      info.innerHTML = `<span class="nil${failed ? ' failed' : ''}">${label}</span><span class="sep">·</span><span>Won <b>${state.tricks[seat]}</b></span>`;
     } else {
-      info.innerHTML = `<span>Bid <b>${bid}</b></span><span class="sep">·</span><span>Won <b>${state.tricks[seat]}</b></span>`;
+      const won = state.phase === 'bidding' ? '' : `<span><span class="lbl">Won </span><b>${state.tricks[seat]}</b></span>`;
+      if (bid === 0) {
+        const failed = state.tricks[seat] > 0;
+        const label = state.blind[seat] ? 'Blind nil' : 'Nil';
+        info.innerHTML = `<span class="nil${failed ? ' failed' : ''}">${label}</span>${won}`;
+      } else {
+        info.innerHTML = won ? `<span><span class="lbl">Won </span><b>${state.tricks[seat]}</b> of <b>${bid}</b></span>` : `<span>Bid <b>${bid}</b></span>`;
+      }
     }
 
     const backs = el.querySelector('.backs');
@@ -311,6 +311,18 @@ function renderPanels() {
   }
 }
 
+// The hand is stored as ♠ ♥ ♣ ♦, which alternates colors until a suit runs out.
+// With exactly three suits left, put the odd-colored suit between the other two.
+function displayOrder(hand) {
+  const isRed = (suit) => suit === 'H' || suit === 'D';
+  const suits = [...new Set(hand.map(suitOf))];
+  if (suits.length !== 3) return hand;
+  const odd = suits.find((s) => suits.filter((t) => isRed(t) === isRed(s)).length === 1);
+  const [first, last] = suits.filter((s) => s !== odd);
+  const order = [first, odd, last];
+  return hand.slice().sort((a, b) => order.indexOf(suitOf(a)) - order.indexOf(suitOf(b)));
+}
+
 function renderHand() {
   const handEl = $('hand');
   const ui = handUi();
@@ -319,9 +331,13 @@ function renderHand() {
   const legal = myTurn ? legalPlays(state, 0) : [];
   handEl.classList.toggle('my-turn', myTurn);
   handEl.innerHTML = '';
-  for (const card of state.hands[0]) {
+  let prevSuit = null;
+  for (const card of displayOrder(state.hands[0])) {
     const slot = document.createElement('div');
-    slot.className = 'hslot';
+    // A small gap between suits makes the fanned hand easier to scan.
+    const suit = suitOf(card);
+    slot.className = !faceDown && prevSuit && suit !== prevSuit ? 'hslot new-suit' : 'hslot';
+    prevSuit = suit;
     if (faceDown) {
       const back = document.createElement('div');
       back.className = 'back back-card';
@@ -526,7 +542,7 @@ $('btn-last').addEventListener('click', showLastTrick);
 
 $('btn-hint').addEventListener('click', () => {
   if (state.phase === 'bidding' && state.turn === 0) hint = chooseBid(state, 0);
-  else if (state.phase === 'playing' && state.turn === 0) hint = choosePlay(state, 0);
+  else if (state.phase === 'playing' && state.turn === 0) hint = choosePlaySearch(state, 0);
   render();
 });
 $('bid-hint').addEventListener('click', () => {

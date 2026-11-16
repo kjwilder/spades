@@ -7,7 +7,7 @@ Play Spades in your browser: you and a computer partner (North) against two comp
 ## Features
 
 - Standard partnership Spades: bidding, nil, blind nil (optional), breaking spades, bags and the 10-bag penalty
-- Computer players that bid from hand strength and table position, count cards, cover a partner's nil, attack an opponent's nil, try to set the other team, and avoid bags once their contract is safe
+- Computer players that bid from hand strength and table position, count cards, cover a partner's nil, attack an opponent's nil, try to set the other team, and avoid bags once their contract is safe. Before each play they deal the unseen cards at random a few dozen times and play the hand out to check which card does best, without ever looking at the real hands
 - Hints for bids and plays, last-trick review, and a per-hand score sheet
 - Game to 200, 300 or 500 points; adjustable computer speed
 - The game is saved in the browser, so a reload picks up where you left off
@@ -38,6 +38,7 @@ npm start            # python3 -m http.server 8000, then open http://localhost:8
 npm test             # rules, scoring and AI unit tests (Node 18+)
 npm run sim -- 500   # play 500 computer-only games and print bidding/nil statistics
 node tests/sim.js 300 random   # AI team vs a team playing random legal cards
+node tests/sim.js 50 search    # look-ahead player (used in the game) vs the rule-based player alone; slow
 ```
 
 ## Deploying

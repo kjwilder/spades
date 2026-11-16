@@ -4,7 +4,7 @@ import {
   makeDeck, newGame, startHand, applyBid, applyPlay, collectTrick, legalPlays, currentWinner,
   scoreTeam, finishHand, gameWinner, canBlindNil, sortHand, nextHand,
 } from '../js/engine.js';
-import { chooseBid, choosePlay, estimateTricks, nilDanger } from '../js/ai.js';
+import { chooseBid, choosePlay, choosePlaySearch, estimateTricks, nilDanger } from '../js/ai.js';
 import { playGame, mulberry32 } from './sim.js';
 
 const bids = (a) => a;
@@ -218,4 +218,20 @@ test('full AI games complete with legal play and consistent scores', () => {
     assert.deepEqual(sum, state.scores);
     assert.ok(Math.max(...state.scores) >= state.options.target);
   }
+});
+
+test('look-ahead AI plays legal cards, is repeatable, and falls back on hand-built positions', () => {
+  const { state } = playGame(3, { searchTeam: 0, maxHands: 2 });
+  assert.equal(state.history.length, 2);
+
+  const s = newGame({}, mulberry32(11));
+  while (s.phase === 'bidding') applyBid(s, s.turn, chooseBid(s, s.turn));
+  const first = choosePlaySearch(s, s.turn);
+  assert.ok(legalPlays(s, s.turn).includes(first));
+  assert.equal(choosePlaySearch(s, s.turn), first);
+
+  const built = stateWith([['H3', 'H11', 'H14', 'D4'], ['H2'], ['H5'], ['H8']], {
+    trick: [{ seat: 1, card: 'H6' }, { seat: 2, card: 'H4' }, { seat: 3, card: 'H10' }],
+  });
+  assert.equal(choosePlaySearch(built, 0), 'H11');
 });

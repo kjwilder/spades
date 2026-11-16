@@ -1,11 +1,13 @@
 // Plays complete computer-vs-computer games to check rule invariants and measure AI quality.
-// Usage: node tests/sim.js [games] [opponent]
-//   opponent = "ai" (default: both teams use the full AI) or "random" (team 1 plays random legal cards)
+// Usage: node tests/sim.js [games] [mode]
+//   mode = "ai" (default: both teams use the fast rule-based AI),
+//          "random" (team 1 plays random legal cards), or
+//          "search" (team 0 uses the look-ahead player the game uses; team 1 stays rule-based; slow)
 
 import {
   newGame, applyBid, applyPlay, collectTrick, nextHand, legalPlays, teamOf, canBlindNil,
 } from '../js/engine.js';
-import { chooseBid, chooseBlindNil, choosePlay, estimateTricks } from '../js/ai.js';
+import { chooseBid, chooseBlindNil, choosePlay, choosePlaySearch, estimateTricks } from '../js/ai.js';
 
 export function mulberry32(seed) {
   return function () {
@@ -16,7 +18,7 @@ export function mulberry32(seed) {
   };
 }
 
-export function playGame(seed, { randomTeam = null, maxHands = 200, params = [undefined, undefined] } = {}) {
+export function playGame(seed, { randomTeam = null, searchTeam = null, maxHands = 200, params = [undefined, undefined] } = {}) {
   const rng = mulberry32(seed);
   const state = newGame({}, rng);
   const stats = { hands: 0, contracts: [0, 0], made: [0, 0], nils: [0, 0], nilsMade: [0, 0],
@@ -35,7 +37,9 @@ export function playGame(seed, { randomTeam = null, maxHands = 200, params = [un
       const legal = legalPlays(state, seat);
       const card = randomTeam === teamOf(seat)
         ? legal[Math.floor(rng() * legal.length)]
-        : choosePlay(state, seat, params[teamOf(seat)]);
+        : searchTeam === teamOf(seat)
+          ? choosePlaySearch(state, seat, {}, params[teamOf(seat)])
+          : choosePlay(state, seat, params[teamOf(seat)]);
       if (!legal.includes(card)) throw new Error(`AI chose illegal card ${card}`);
       applyPlay(state, seat, card);
     }
@@ -61,10 +65,11 @@ export function playGame(seed, { randomTeam = null, maxHands = 200, params = [un
 if (import.meta.url === `file://${process.argv[1]}`) {
   const games = Number(process.argv[2] || 500);
   const randomTeam = process.argv[3] === 'random' ? 1 : null;
+  const searchTeam = process.argv[3] === 'search' ? 0 : null;
   const agg = { wins: [0, 0], hands: 0, contracts: [0, 0], made: [0, 0], nils: [0, 0], nilsMade: [0, 0],
     blindNils: 0, blindMade: 0, bags: [0, 0], calib: [], unfinished: 0 };
   for (let g = 0; g < games; g++) {
-    const { state, stats } = playGame(1000 + g, { randomTeam });
+    const { state, stats } = playGame(1000 + g, { randomTeam, searchTeam });
     if (state.winner === null) agg.unfinished++; else agg.wins[state.winner]++;
     agg.hands += stats.hands;
     agg.blindNils += stats.blindNils;
